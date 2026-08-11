@@ -207,8 +207,9 @@ async def send_poll_logic(update: Update, context: ContextTypes.DEFAULT_TYPE, to
             explanation=data["explanation"]
         )
         await waiting_msg.delete()
-    except Exception:
-        await waiting_msg.edit_text("❌ प्रश्न बनाने में त्रुटि हुई।")
+    except Exception as e:
+        print("Error creating question:", e)
+        await waiting_msg.edit_text(f"❌ प्रश्न बनाने में त्रुटि हुई: {str(e)}")
 
 async def poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     answer = update.poll_answer
@@ -287,7 +288,8 @@ async def chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             contents=f"आप NEET Biology AI Tutor हैं। छात्र के इस प्रश्न का हिंदी में सटीक उत्तर दें: {query}"
         )
         await msg.edit_text(response.text)
-    except Exception:
+    except Exception as e:
+        print("Chat Error:", e)
         await msg.edit_text("❌ चैट करने में समस्या आई।")
 
 async def motivation_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
