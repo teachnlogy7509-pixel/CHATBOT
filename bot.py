@@ -4,8 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 from telegram import Update
 from telegram.ext import (
@@ -20,8 +19,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 ADMIN_IDS = {5874895507}
 DB_FILE = "bot_data.db"
-# वर्तमान में समर्थित और चालू मॉडल नाम
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-1.5-flash"
 
 if not TELEGRAM_TOKEN:
     raise RuntimeError("TELEGRAM_TOKEN missing")
@@ -29,7 +27,8 @@ if not TELEGRAM_TOKEN:
 if not GEMINI_API_KEY:
     raise RuntimeError("GEMINI_API_KEY missing")
 
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel(GEMINI_MODEL)
 
 def database():
     connection = sqlite3.connect(DB_FILE)
@@ -103,55 +102,27 @@ def get_poll(poll_id):
     connection.close()
     return row
 
-def question_schema():
-    return {
-        "type": "OBJECT",
-        "properties": {
-            "question": {"type": "STRING"},
-            "assertion": {"type": "STRING"},
-            "reason": {"type": "STRING"},
-            "options": {"type": "ARRAY", "items": {"type": "STRING"}},
-            "correct_option": {"type": "INTEGER"},
-            "explanation": {"type": "STRING"}
-        },
-        "required": ["question", "assertion", "reason", "options", "correct_option", "explanation"]
-    }
-
 async def create_question(topic: str, mode: str) -> dict[str, Any]:
     if mode == "mcq":
-        instructions = "यह एक सामान्य NEET Biology MCQ होना चाहिए। 'question' में प्रश्न लिखें, assertion/reason खाली रखें।"
+        instructions = "यह एक सामान्य NEET Biology MCQ होना चाहिए। 'question' में प्रश्न लिखें।"
     else:
-        instructions = """
-यह Assertion-Reason question होना चाहिए। 'question' खाली रखें।
-'assertion' में कथन और 'reason' में कारण लिखें।
-Options बिल्कुल ये चार हों:
-1. A और R दोनों सही हैं तथा R, A की सही व्याख्या है
-2. A और R दोनों सही हैं लेकिन R, A की सही व्याख्या नहीं है
-3. A सही है लेकिन R गलत है
-4. A गलत है लेकिन R सही है
-"""
+        instructions = "यह Assertion-Reason question होना चाहिए। 'assertion' और 'reason' लिखें।"
 
     prompt = f"""
 आप NEET Biology के expert teacher हैं।
 Topic: {topic}
 Question type: {mode}
-इस topic पर NCERT लेवल का एक नया हिंदी प्रश्न बनाएं। चार options दें। correct_option केवल 0, 1, 2 या 3 हो।
-{instructions}
-उत्तर केवल JSON schema के अनुसार दें।
+इस topic पर NCERT लेवल का एक नया हिंदी प्रश्न बनाएं।
+उत्तर केवल JSON format में दें जिसमें ये keys हों: question, assertion, reason, options (4 items की list), correct_option (0 से 3 के बीच integer), explanation।
 """
 
-    response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.7,
-            response_mime_type="application/json",
-            response_schema=question_schema()
-        )
+    response = model.generate_content(
+        prompt,
+        generation_config={"response_mime_type": "application/json", "temperature": 0.7}
     )
 
     data = json.loads(response.text)
-    if len(data["options"]) != 4:
+    if len(data.get("options", [])) != 4:
         raise ValueError("Gemini ने 4 options नहीं दिए")
     return data
 
@@ -187,7 +158,7 @@ async def send_poll_logic(update: Update, context: ContextTypes.DEFAULT_TYPE, to
 
     try:
         data = await create_question(topic, mode)
-        q_text = data["question"] if mode == "mcq" else f"कथन (A): {data['assertion']}\n\nकारण (R): {data['reason']}"
+        q_text = data.get("question") if mode == "mcq" else f"कथन (A): {data.get('assertion')}\n\nकारण (R): {data.get('reason')}"
 
         poll_msg = await context.bot.send_poll(
             chat_id=chat.id,
@@ -284,22 +255,16 @@ async def chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = await update.message.reply_text("🤖 Gemini सोच रहा है...")
     try:
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=f"आप NEET Biology AI Tutor हैं। छात्र के इस प्रश्न का हिंदी में सटीक उत्तर दें: {query}"
-        )
-        await msg.edit_text(response.text)
+        chat_resp = model.generate_content(f"आप NEET Biology AI Tutor हैं। छात्र के इस प्रश्न का हिंदी में सटीक उत्तर दें: {query}")
+        await msg.edit_text(chat_resp.text)
     except Exception as e:
         print("Chat Error:", e)
         await msg.edit_text(f"❌ चैट करने में समस्या आई: {str(e)}")
 
 async def motivation_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents="NEET aspirants के लिए एक पावरफुल मोटिवेशनल लाइन हिंदी में दें।"
-        )
-        await update.message.reply_text(f"🔥 *Study Motivation*\n\n{response.text}", parse_mode="Markdown")
+        mot_resp = model.generate_content("NEET aspirants के लिए एक पावरफुल मोटिवेशनल लाइन हिंदी में दें।")
+        await update.message.reply_text(f"🔥 *Study Motivation*\n\n{mot_resp.text}", parse_mode="Markdown")
     except Exception:
         await update.message.reply_text("🔥 मेहनत इतनी खामोशी से करो कि सफलता शोर मचा दे!")
 
