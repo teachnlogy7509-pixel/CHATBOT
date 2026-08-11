@@ -4,7 +4,8 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from telegram import Update
 from telegram.ext import (
@@ -12,6 +13,8 @@ from telegram.ext import (
     CommandHandler,
     ContextTypes,
     PollAnswerHandler,
+    MessageHandler,
+    filters,
 )
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -19,7 +22,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 ADMIN_IDS = {5874895507}
 DB_FILE = "bot_data.db"
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 if not TELEGRAM_TOKEN:
     raise RuntimeError("TELEGRAM_TOKEN missing")
@@ -27,8 +30,7 @@ if not TELEGRAM_TOKEN:
 if not GEMINI_API_KEY:
     raise RuntimeError("GEMINI_API_KEY missing")
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(GEMINI_MODEL)
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 def database():
     connection = sqlite3.connect(DB_FILE)
@@ -56,6 +58,15 @@ def setup_database():
             correct_option INTEGER NOT NULL,
             explanation TEXT NOT NULL,
             created_at TEXT NOT NULL
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS pdfs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id TEXT NOT NULL,
+            file_name TEXT NOT NULL,
+            uploaded_by INTEGER NOT NULL,
+            uploaded_at TEXT NOT NULL
         )
     """)
     connection.commit()
@@ -102,6 +113,64 @@ def get_poll(poll_id):
     connection.close()
     return row
 
+def save_pdf(file_id: str, file_name: str, uploaded_by: int):
+    connection = database()
+    connection.execute(
+        "INSERT INTO pdfs (file_id, file_name, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?)",
+        (file_id, file_name, uploaded_by, datetime.now(timezone.utc).isoformat())
+    )
+    connection.commit()
+    connection.close()
+
+
+def get_pdfs():
+    connection = database()
+    rows = connection.execute(
+        "SELECT id, file_id, file_name FROM pdfs ORDER BY id DESC"
+    ).fetchall()
+    connection.close()
+    return rows
+
+
+async def pdf_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or user.id not in ADMIN_IDS:
+        await message.reply_text("⚠️ PDF अपलोड करने की अनुमति केवल Admin को है।")
+        return
+
+    document = message.document
+    if not document:
+        return
+
+    file_name = document.file_name or "document.pdf"
+    if not file_name.lower().endswith(".pdf"):
+        await message.reply_text("❌ केवल PDF फाइल अपलोड करें।")
+        return
+
+    save_pdf(document.file_id, file_name, user.id)
+    await message.reply_text(
+        f"✅ PDF सेव हो गई!\n\n📄 {file_name}\n\n"
+        "यूज़र /pdfs कमांड से उपलब्ध PDFs देख सकते हैं।"
+    )
+
+
+async def pdfs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    rows = get_pdfs()
+
+    if not rows:
+        await update.message.reply_text("📚 अभी कोई PDF उपलब्ध नहीं है।")
+        return
+
+    for row in rows:
+        await context.bot.send_document(
+            chat_id=update.effective_chat.id,
+            document=row["file_id"],
+            caption=f"📄 {row['file_name']}"
+        )
+
+
 async def create_question(topic: str, mode: str) -> dict[str, Any]:
     if mode == "mcq":
         instructions = "यह एक सामान्य NEET Biology MCQ होना चाहिए। 'question' में प्रश्न लिखें।"
@@ -116,9 +185,13 @@ Question type: {mode}
 उत्तर केवल JSON format में दें जिसमें ये keys हों: question, assertion, reason, options (4 items की list), correct_option (0 से 3 के बीच integer), explanation।
 """
 
-    response = model.generate_content(
-        prompt,
-        generation_config={"response_mime_type": "application/json", "temperature": 0.7}
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.7,
+            response_mime_type="application/json",
+        ),
     )
 
     data = json.loads(response.text)
@@ -137,6 +210,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /chatee [सवाल] - Gemini से चैट करें\n"
         "• /motivationee - मोटिवेशन लाइन\n"
         "• /winneree - (Admin) विनर्स घोषणा\n"
+        "• /pdfs - उपलब्ध PDFs\n"
+        "• Admin PDF भेजकर उसे सेव कर सकता है\n"
         "• /helpee - मदद",
         parse_mode="Markdown"
     )
@@ -255,7 +330,10 @@ async def chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = await update.message.reply_text("🤖 Gemini सोच रहा है...")
     try:
-        chat_resp = model.generate_content(f"आप NEET Biology AI Tutor हैं। छात्र के इस प्रश्न का हिंदी में सटीक उत्तर दें: {query}")
+        chat_resp = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=f"आप NEET Biology AI Tutor हैं। छात्र के इस प्रश्न का हिंदी में सटीक उत्तर दें: {query}"
+        )
         await msg.edit_text(chat_resp.text)
     except Exception as e:
         print("Chat Error:", e)
@@ -263,7 +341,10 @@ async def chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def motivation_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        mot_resp = model.generate_content("NEET aspirants के लिए एक पावरफुल मोटिवेशनल लाइन हिंदी में दें।")
+        mot_resp = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents="NEET aspirants के लिए एक पावरफुल मोटिवेशनल लाइन हिंदी में दें।"
+        )
         await update.message.reply_text(f"🔥 *Study Motivation*\n\n{mot_resp.text}", parse_mode="Markdown")
     except Exception:
         await update.message.reply_text("🔥 मेहनत इतनी खामोशी से करो कि सफलता शोर मचा दे!")
@@ -305,6 +386,8 @@ def main():
     app.add_handler(CommandHandler("chatee", chat_command))
     app.add_handler(CommandHandler("motivationee", motivation_command))
     app.add_handler(CommandHandler("winneree", winner_command))
+    app.add_handler(CommandHandler("pdfs", pdfs_command))
+    app.add_handler(MessageHandler(filters.Document.PDF, pdf_upload))
     app.add_handler(PollAnswerHandler(poll_answer))
 
     print("🚀 NEET Gemini Bot Started Successfully!")
