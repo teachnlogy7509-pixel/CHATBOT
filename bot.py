@@ -20,7 +20,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 ADMIN_IDS = {5874895507}
 DB_FILE = "bot_data.db"
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-1.5-flash"
 
 if not TELEGRAM_TOKEN:
     raise RuntimeError("TELEGRAM_TOKEN missing")
@@ -290,7 +290,7 @@ async def chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(response.text)
     except Exception as e:
         print("Chat Error:", e)
-        await msg.edit_text("❌ चैट करने में समस्या आई।")
+        await msg.edit_text(f"❌ चैट करने में समस्या आई: {str(e)}")
 
 async def motivation_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -316,7 +316,7 @@ async def winner_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     connection.close()
 
     if not rows:
-        await update.message.reply_text("🎉 अभी किसी ने क्विज़ नहीं खेला है!")
+        await update.message.reply_text("🎉 अभी कोई विजेता उपलब्ध नहीं है!")
         return
 
     text = "🎉🎊 *NEET Test Top Winners Announcement* 🎊🎉\n\nशानदार प्रदर्शन करने वाले विनर्स:\n\n"
