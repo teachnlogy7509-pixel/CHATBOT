@@ -20,8 +20,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 ADMIN_IDS = {5874895507}
 DB_FILE = "bot_data.db"
-# 100% Working Stable Model
-GEMINI_MODEL = "gemini-1.5-pro"
+# वर्तमान में समर्थित और चालू मॉडल नाम
+GEMINI_MODEL = "gemini-2.5-flash"
 
 if not TELEGRAM_TOKEN:
     raise RuntimeError("TELEGRAM_TOKEN missing")
