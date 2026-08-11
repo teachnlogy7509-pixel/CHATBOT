@@ -20,8 +20,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 ADMIN_IDS = {5874895507}
 DB_FILE = "bot_data.db"
-# वर्तमान में पूरी तरह सपोर्टेड और स्टेबल मॉडल नाम
-GEMINI_MODEL = "gemini-2.0-flash"
+# 100% Working Stable Model
+GEMINI_MODEL = "gemini-1.5-pro"
 
 if not TELEGRAM_TOKEN:
     raise RuntimeError("TELEGRAM_TOKEN missing")
@@ -343,7 +343,6 @@ def main():
     app.add_handler(PollAnswerHandler(poll_answer))
 
     print("🚀 NEET Gemini Bot Started Successfully!")
-    # drop_pending_updates=True से टेलीग्राम conflict error पूरी तरह दूर हो जाएगा
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 if __name__ == "__main__":
