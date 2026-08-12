@@ -283,20 +283,28 @@ def add_motivation_job(app,chat_id):
     app.job_queue.run_daily(morning_motivation_job,time=time(7,0,tzinfo=IST),data={"chat_id":chat_id},name=f"motivation_{chat_id}")
 
 async def schedule_command(update,context):
-    if update.effective_user.id not in ADMIN_IDS:return update.message.reply_text("⚠️ केवल Admin.")
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("⚠️ केवल Admin.")
+        return
     parsed=parse_schedule_args(list(context.args))
-    if not parsed:return update.message.reply_text("❌ Format: /scheduleee Biology 10 17:00 60")
-    topic,count,hour,minute,timer=parsed;sid=save_schedule(update.effective_chat.id,update.effective_user.id,topic,count,hour,minute,timer)
+    if not parsed:
+        await update.message.reply_text("❌ Format: /scheduleee Biology 10 17:00 60")
+        return
+    topic,count,hour,minute,timer=parsed
+    sid=save_schedule(update.effective_chat.id,update.effective_user.id,topic,count,hour,minute,timer)
     add_schedule_job(context.application,{"id":sid,"chat_id":update.effective_chat.id,"admin_id":update.effective_user.id,"topic":topic,"count":count,"question_count":count,"hour":hour,"minute":minute,"timer":timer,"timer_seconds":timer})
     add_motivation_job(context.application,update.effective_chat.id)
-    return update.message.reply_text("✅ Daily schedule saved.",parse_mode="Markdown")
+    await update.message.reply_text("✅ Daily schedule saved.",parse_mode="Markdown")
 
 async def unschedule_command(update,context):
-    if update.effective_user.id not in ADMIN_IDS:return update.message.reply_text("⚠️ केवल Admin.")
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("⚠️ केवल Admin.")
+        return
     delete_schedules(update.effective_chat.id,update.effective_user.id)
     for job in context.job_queue.jobs():
-        if job.name.startswith("schedule_") and job.data.get("chat_id")==update.effective_chat.id:job.schedule_removal()
-    return update.message.reply_text("✅ Daily schedule removed.")
+        if job.name and job.name.startswith("schedule_") and job.data.get("chat_id")==update.effective_chat.id:
+            job.schedule_removal()
+    await update.message.reply_text("✅ Daily schedule removed.")
 
 def restore_schedules(app):
     for row in get_schedules():add_schedule_job(app,row)
@@ -333,3 +341,4 @@ def register_handlers(app):
     app.add_handler(MessageHandler(filters.Document.PDF,pdf_upload))
     app.add_handler(MessageHandler(filters.PHOTO, photo_message))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,text_message))
+```[cite: 1]
