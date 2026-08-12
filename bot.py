@@ -1,6 +1,8 @@
+import os
 import re
 from datetime import datetime,time,timedelta
 from zoneinfo import ZoneInfo
+from gtts import gTTS
 from telegram.ext import ContextTypes,CommandHandler,MessageHandler,PollAnswerHandler,filters
 from config import ADMIN_IDS
 from database import (get_poll,get_pdfs,save_pdf,save_poll,save_schedule,get_schedules,delete_schedules,
@@ -38,9 +40,10 @@ async def start_command(update, context):
         "/leaderboardee\n"
         "/toptodayee\n"
         "/resettee\n"
-        "/winneree\n\n"
+        "/winneree (Winner 2-line welcome speech)\n\n"
         "🤖 *AI*\n"
         "/chatee <question>\n"
+        "/audio <doubt> (Voice Note Reply)\n"
         "/motivationee\n"
         "/eli10ee <topic>\n\n"
         "🧠 *Smart Study*\n"
@@ -58,7 +61,7 @@ async def start_command(update, context):
         "⏰ *Admin Schedule*\n"
         "/scheduleee <topic> <count> HH:MM <timer>\n"
         "/unscheduleee\n\n"
-        "🌅 Daily motivation, welcome messages, and photo doubt solving are supported.",
+        "🌅 Features: Group/Private photo doubts, Voice Note audio replies, Winner speech.",
         parse_mode="Markdown"
     )
 
@@ -126,8 +129,18 @@ async def winner_command(update, context):
     if not rows:
         await update.message.reply_text("अभी कोई winner नहीं है.")
         return
+    
+    names_str = ", ".join([row['name'] for row in rows])
+    try:
+        welcome_speech = ask_gemini(
+            context.application.bot_data["gemini_client"],
+            f"NEET study group के top winners हैं: {names_str}. इनके लिए शानदार 2 lines की स्वागत और प्रशंसा भरी लाइनें हिंदी में लिखें।"
+        )
+    except Exception:
+        welcome_speech = "आपकी मेहनत रंग लाई है, ऐसे ही आगे बढ़ते रहें!"
+
     medals = ["🥇", "🥈", "🥉"]
-    text = "🎉 *Top 3 Winners* 🎉\n\n"
+    text = f"🎉 *Top 3 Winners Announcement* 🎉\n\n✨ _{welcome_speech}_\n\n"
     for i, row in enumerate(rows):
         text += f"{medals[i]} *{row['name']}* — {row['total_score']} अंक\n"
     await update.message.reply_text(text, parse_mode="Markdown")
@@ -143,6 +156,28 @@ async def chat_command(update,context):
     if not q:return await update.message.reply_text("उदाहरण: /chatee mitochondria क्या है?")
     try:await update.message.reply_text(ask_gemini(context.application.bot_data["gemini_client"],f"NEET Biology tutor. हिंदी में उत्तर दें: {q}")[:4000])
     except Exception:await update.message.reply_text("❌ Gemini अभी उपलब्ध नहीं है।")
+
+async def audio_doubt_command(update, context):
+    q = " ".join(context.args).strip()
+    if not q:
+        return await update.message.reply_text("उदाहरण: /audio श्वसन तंत्र को समझाइए")
+    
+    wait_msg = await update.message.reply_text("🎙️ Voice note तैयार हो रहा है...")
+    try:
+        ans = ask_gemini(context.application.bot_data["gemini_client"], f"NEET Biology expert tutor. इस डाउट का बिल्कुल संक्षिप्त और आसान हिंदी में उत्तर दें (लगभग 3-4 वाक्य ताकि voice note स्पष्ट बने): {q}")
+        
+        tts = gTTS(text=ans, lang='hi')
+        audio_path = "doubt_voice.mp3"
+        tts.save(audio_path)
+        
+        with open(audio_path, 'rb') as audio:
+            await update.message.reply_voice(voice=audio, caption="🗣️ आपके डाउट का वॉइस नोट उत्तर")
+            
+        await wait_msg.delete()
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+    except Exception as e:
+        await wait_msg.edit_text("❌ वॉइस नोट बनाने में असमर्थ।")
 
 async def mistakes_command(update,context):
     rows=get_mistakes(update.effective_user.id,30)
@@ -214,21 +249,22 @@ async def survival_command(update,context):
     await update.message.reply_text(f"🛡️ Survival Mode started!\nTopic: {topic}\nआगे normal quiz flow में questions भेजे जा सकते हैं।")
 
 async def photo_message(update, context):
-    user = update.effective_user
-    if update.effective_chat.type in ("group", "supergroup") and not (update.message.reply_to_message and update.message.reply_to_message.from_user and update.message.reply_to_message.from_user.id == context.bot.id):
-        return
-    
+    chat = update.effective_chat
+    if chat.type in ("group", "supergroup"):
+        reply = update.message.reply_to_message
+        is_bot_reply = reply and reply.from_user and reply.from_user.id == context.bot.id
+        has_caption_mention = update.message.caption and f"@{context.bot.username}" in update.message.caption
+        if not is_bot_reply and not has_caption_mention:
+            return
+
     photo = update.message.photo[-1]
     caption = update.message.caption or ""
-    
     processing_msg = await update.message.reply_text("🔍 फोटो प्रोसेस हो रही है, कृपया प्रतीक्षा करें...")
     
     try:
         file = await context.bot.get_file(photo.file_id)
         image_bytes = await file.download_as_bytearray()
-        
         answer = solve_image_doubt(context.application.bot_data["gemini_client"], bytes(image_bytes), caption)
-        
         await processing_msg.edit_text(answer[:4000], parse_mode="Markdown")
     except Exception as e:
         await processing_msg.edit_text("❌ फोटो से प्रश्न हल करने में असमर्थ। कृपया पुनः प्रयास करें।")
@@ -327,6 +363,7 @@ def register_handlers(app):
       CommandHandler("quizee",quiz),CommandHandler("assertionee",assertion_reason),CommandHandler("scoreee",score_command),
       CommandHandler("leaderboardee",leaderboard_command),CommandHandler("toptodayee",today_command),
       CommandHandler("resettee",reset_command),CommandHandler("chatee",chat_command),
+      CommandHandler("audio",audio_doubt_command),
       CommandHandler("motivationee",motivation_command),CommandHandler("winneree",winner_command),CommandHandler("mistakeee",mistakes_command),
       CommandHandler("mistakequizee",mistake_quiz_command),CommandHandler("teachee",teach_command),
       CommandHandler("vivaee",viva_command),CommandHandler("planee",plan_command),
