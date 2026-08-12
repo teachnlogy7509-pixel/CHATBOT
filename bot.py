@@ -27,15 +27,40 @@ def parse_schedule_args(args):
     count=max(1,min(50,int(args.pop()))); topic=" ".join(args).strip()
     return (topic,count,int(m.group(1)),int(m.group(2)),timer) if topic else None
 
-async def start_command(update,context):
-    await update.message.reply_text("🎯 *NEET Gemini Study Bot*\n\n"
-      "📚 `/quizee Biology 10` • `/assertionee Genetics 5 60`\n"
-      "🏆 `/leaderboardee` • 📊 `/scoreee` • `/toptoday` • `/reset`\n"
-      "📕 `/mistakes` • `/mistakequiz`\n"
-      "🧠 `/teach <topic>` • 🎤 `/viva <topic>`\n"
-      "🗺️ `/plan <topic> <days>` • ⏰ `/remind <minutes> <text>`\n"
-      "🔍 `/eli10 <topic>` • 🚨 `/panic <topic> <hours>`\n"
-      "🃏 `/flashcards <topic>` • 🛡️ `/survival <topic>`",parse_mode="Markdown")
+async def start_command(update, context):
+    await update.message.reply_text(
+        "🎯 *NEET Gemini Study Bot*\n\n"
+        "📝 *Quiz*\n"
+        "/quizee Biology 10\n"
+        "/assertionee Genetics 5 60\n\n"
+        "🏆 *Scores*\n"
+        "/scoreee\n"
+        "/leaderboardee\n"
+        "/toptodayeeee\n"
+        "/resetteetee\n"
+        "/winneree\n\n"
+        "🤖 *AI*\n"
+        "/chatee <question>\n"
+        "/motivationee\n"
+        "/eli10eeee <topic>\n\n"
+        "🧠 *Smart Study*\n"
+        "/mistakeee\n"
+        "/mistakequizeeee\n"
+        "/teacheeee <topic>\n"
+        "/vivaeeee <topic>\n"
+        "/planeeee <topic> <days>\n"
+        "/remindeeee <minutes> <text>\n"
+        "/paniceeee <topic> <hours>\n"
+        "/flashcardseeee <topic>\n"
+        "/survivaleeee <topic>\n\n"
+        "📄 *PDF*\n"
+        "/pdfseeee\n\n"
+        "⏰ *Admin Schedule*\n"
+        "/scheduleeeee <topic> <count> HH:MM <timer>\n"
+        "/unscheduleeeee\n\n"
+        "🌅 Daily motivation and welcome messages are supported.",
+        parse_mode="Markdown"
+    )
 
 async def quiz(update,context):
     args=list(context.args); topic,count,timer=parse_quiz_args(args)
@@ -125,19 +150,19 @@ async def mistake_quiz_command(update,context):
 
 async def teach_command(update,context):
     topic=" ".join(context.args).strip()
-    if not topic:return await update.message.reply_text("उदाहरण: /teach Photosynthesis")
+    if not topic:return await update.message.reply_text("उदाहरण: /teachee Photosynthesis")
     set_teach_session(update.effective_user.id,update.effective_chat.id,topic)
     await update.message.reply_text(f"🧠 *Teach-Back*\n\n{topic} को अपने शब्दों में समझाओ।",parse_mode="Markdown")
 
 async def viva_command(update,context):
     topic=" ".join(context.args).strip()
-    if not topic:return await update.message.reply_text("उदाहरण: /viva Human Reproduction")
+    if not topic:return await update.message.reply_text("उदाहरण: /vivaee Human Reproduction")
     q=ask_gemini(context.application.bot_data["gemini_client"],f"{topic} पर एक NEET viva question हिंदी में दो.")
     set_viva_session(update.effective_user.id,update.effective_chat.id,topic,q)
     await update.message.reply_text(f"🎤 *Viva Q1*\n\n{q}",parse_mode="Markdown")
 
 async def plan_command(update,context):
-    if len(context.args)<2:return await update.message.reply_text("उदाहरण: /plan Biology 30")
+    if len(context.args)<2:return await update.message.reply_text("उदाहरण: /planee Biology 30")
     days=int(context.args[-1]);topic=" ".join(context.args[:-1])
     try:
         plan=ask_gemini(context.application.bot_data["gemini_client"],f"{topic} के लिए {days} दिनों का NEET study roadmap हिंदी में बनाओ।")
@@ -145,7 +170,7 @@ async def plan_command(update,context):
     except Exception:await update.message.reply_text("❌ Study plan अभी नहीं बन पाया।")
 
 async def remind_command(update,context):
-    if len(context.args)<2 or not context.args[0].isdigit():return await update.message.reply_text("उदाहरण: /remind 30 Biology revise")
+    if len(context.args)<2 or not context.args[0].isdigit():return await update.message.reply_text("उदाहरण: /remindee 30 Biology revise")
     mins=max(1,min(10080,int(context.args[0]))); text=" ".join(context.args[1:])
     rid=save_reminder(update.effective_user.id,update.effective_chat.id,text,datetime.utcnow().isoformat())
     context.job_queue.run_once(reminder_job,timedelta(minutes=mins),data={"id":rid,"chat_id":update.effective_chat.id,"text":text})
@@ -158,19 +183,19 @@ async def reminder_job(context):
 
 async def eli10_command(update,context):
     topic=" ".join(context.args).strip()
-    if not topic:return await update.message.reply_text("उदाहरण: /eli10 Krebs Cycle")
+    if not topic:return await update.message.reply_text("उदाहरण: /eli10ee Krebs Cycle")
     try:await update.message.reply_text(ask_gemini(context.application.bot_data["gemini_client"],f"{topic} को 10 साल के बच्चे जैसा आसान हिंदी में समझाओ.")[:4000])
     except Exception:await update.message.reply_text("❌ Explanation अभी उपलब्ध नहीं है।")
 
 async def panic_command(update,context):
-    if len(context.args)<2:return await update.message.reply_text("उदाहरण: /panic Biology 2")
+    if len(context.args)<2:return await update.message.reply_text("उदाहरण: /panicee Biology 2")
     hours=context.args[-1];topic=" ".join(context.args[:-1])
     try:await update.message.reply_text(ask_gemini(context.application.bot_data["gemini_client"],f"{hours} hours में {topic} का high-yield NEET revision plan हिंदी में बनाओ.")[:4000])
     except Exception:await update.message.reply_text("❌ Panic plan अभी उपलब्ध नहीं है।")
 
 async def flashcards_command(update,context):
     topic=" ".join(context.args).strip()
-    if not topic:return await update.message.reply_text("उदाहरण: /flashcards Cell")
+    if not topic:return await update.message.reply_text("उदाहरण: /flashcardsee Cell")
     try:await update.message.reply_text(ask_gemini(context.application.bot_data["gemini_client"],f"{topic} के 10 NEET flashcards हिंदी में बनाओ. Q/A format.")[:4000])
     except Exception:await update.message.reply_text("❌ Flashcards अभी उपलब्ध नहीं हैं।")
 
@@ -230,7 +255,7 @@ def add_motivation_job(app,chat_id):
 def schedule_command(update,context):
     if update.effective_user.id not in ADMIN_IDS:return update.message.reply_text("⚠️ केवल Admin.")
     parsed=parse_schedule_args(list(context.args))
-    if not parsed:return update.message.reply_text("❌ Format: /schedule Biology 10 17:00 60")
+    if not parsed:return update.message.reply_text("❌ Format: /scheduleee Biology 10 17:00 60")
     topic,count,hour,minute,timer=parsed;sid=save_schedule(update.effective_chat.id,update.effective_user.id,topic,count,hour,minute,timer)
     add_schedule_job(context.application,{"id":sid,"chat_id":update.effective_chat.id,"admin_id":update.effective_user.id,"topic":topic,"count":count,"question_count":count,"hour":hour,"minute":minute,"timer":timer,"timer_seconds":timer})
     add_motivation_job(context.application,update.effective_chat.id)
@@ -260,17 +285,17 @@ async def pdfs_command(update,context):
 
 def register_handlers(app):
     hs=[
-      CommandHandler("start",start_command),CommandHandler("help",start_command),
+      CommandHandler("startee",start_command),CommandHandler("helpee",start_command),
       CommandHandler("quizee",quiz),CommandHandler("assertionee",assertion_reason),CommandHandler("scoreee",score_command),
-      CommandHandler("leaderboardee",leaderboard_command),CommandHandler("toptoday",today_command),
-      CommandHandler("reset",reset_command),CommandHandler("chatee",chat_command),
-      CommandHandler("motivationee",motivation_command),CommandHandler("winneree",winner_command),CommandHandler("mistakes",mistakes_command),
-      CommandHandler("mistakequiz",mistake_quiz_command),CommandHandler("teach",teach_command),
-      CommandHandler("viva",viva_command),CommandHandler("plan",plan_command),
-      CommandHandler("remind",remind_command),CommandHandler("eli10",eli10_command),
-      CommandHandler("panic",panic_command),CommandHandler("flashcards",flashcards_command),
-      CommandHandler("survival",survival_command),CommandHandler("pdfs",pdfs_command),
-      CommandHandler("schedule",schedule_command),CommandHandler("unschedule",unschedule_command)
+      CommandHandler("leaderboardee",leaderboard_command),CommandHandler("toptodayee",today_command),
+      CommandHandler("resettee",reset_command),CommandHandler("chatee",chat_command),
+      CommandHandler("motivationee",motivation_command),CommandHandler("winneree",winner_command),CommandHandler("mistakeee",mistakes_command),
+      CommandHandler("mistakequizee",mistake_quiz_command),CommandHandler("teachee",teach_command),
+      CommandHandler("vivaee",viva_command),CommandHandler("planee",plan_command),
+      CommandHandler("remindee",remind_command),CommandHandler("eli10ee",eli10_command),
+      CommandHandler("panicee",panic_command),CommandHandler("flashcardsee",flashcards_command),
+      CommandHandler("survivalee",survival_command),CommandHandler("pdfsee",pdfs_command),
+      CommandHandler("scheduleee",schedule_command),CommandHandler("unscheduleee",unschedule_command)
     ]
     for h in hs:app.add_handler(h)
     app.add_handler(PollAnswerHandler(poll_answer))

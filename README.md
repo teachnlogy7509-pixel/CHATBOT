@@ -1,5 +1,31 @@
 # NEET Gemini Study Bot
-Existing quiz/poll/leaderboard bot plus Mistake Notebook, Teach-Back, Viva, Study Plan, Reminders, Explain Like I'm 10, Exam Panic and Flashcards.
+
+Commands use the `ee` suffix as requested.
+
+- /startee
+- /helpee
+- /quizee
+- /assertionee
+- /scoreee
+- /leaderboardee
+- /toptodayee
+- /resettee
+- /chatee
+- /motivationee
+- /winneree
+- /mistakeee
+- /mistakequizee
+- /teachee
+- /vivaee
+- /planee
+- /remindee
+- /eli10ee
+- /panicee
+- /flashcardsee
+- /survivalee
+- /pdfsee
+- /scheduleee
+- /unscheduleee
 
 Environment variables:
 - TELEGRAM_BOT_TOKEN (or TELEGRAM_TOKEN)
@@ -8,5 +34,3 @@ Environment variables:
 
 Run:
 python3 main.py
-
-Source basis: built from the files/code supplied in the conversation.
