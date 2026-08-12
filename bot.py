@@ -1,3 +1,23 @@
+def solve_image_doubt(client, image_bytes: bytes, caption: str = "") -> str:
+    prompt = f"आप NEET Biology expert tutor हैं। इस image में दिए गए question/doubt को हिंदी में step-by-step समझाएं। अतिरिक्त text/caption: {caption}"
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[
+            types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+            prompt
+        ]
+    )
+    return (response.text or "").strip()
+```[cite: 6]
+
+---
+
+### 2. `bot.py` ko update karein
+Apni `bot.py` file mein sabse upar imports mein `solve_image_doubt` import karein (database aur quiz wale imports ke sath), aur yeh naya `photo_message` handler function add karke `register_handlers` mein jodh dein.
+
+Pura updated `bot.py` code niche diya gaya hai, isse copy karke apni purani `bot.py` file par paste kar dein:
+
+```python
 import re
 from datetime import datetime,time,timedelta
 from zoneinfo import ZoneInfo
@@ -8,7 +28,7 @@ save_user,update_score,reset_score,mark_poll_answer_once,save_mistake,get_mistak
 save_reminder,deactivate_reminder,set_viva_session,get_viva_session,clear_viva_session,
 set_teach_session,get_teach_session,clear_teach_session,get_top_users,get_today_top)
 from leaderboard import make_leaderboard_text,make_today_text
-from quiz import ask_gemini,create_question
+from quiz import ask_gemini,create_question,solve_image_doubt
 IST=ZoneInfo("Asia/Kolkata"); DEFAULT_POLL_TIMER=60
 
 def parse_quiz_args(args):
@@ -36,29 +56,29 @@ async def start_command(update, context):
         "🏆 *Scores*\n"
         "/scoreee\n"
         "/leaderboardee\n"
-        "/toptodayeeee\n"
-        "/resetteetee\n"
+        "/toptodayee\n"
+        "/resettee\n"
         "/winneree\n\n"
         "🤖 *AI*\n"
         "/chatee <question>\n"
         "/motivationee\n"
-        "/eli10eeee <topic>\n\n"
+        "/eli10ee <topic>\n\n"
         "🧠 *Smart Study*\n"
         "/mistakeee\n"
-        "/mistakequizeeee\n"
-        "/teacheeee <topic>\n"
-        "/vivaeeee <topic>\n"
-        "/planeeee <topic> <days>\n"
-        "/remindeeee <minutes> <text>\n"
-        "/paniceeee <topic> <hours>\n"
-        "/flashcardseeee <topic>\n"
-        "/survivaleeee <topic>\n\n"
+        "/mistakequizee\n"
+        "/teachee <topic>\n"
+        "/vivaee <topic>\n"
+        "/planee <topic> <days>\n"
+        "/remindee <minutes> <text>\n"
+        "/panicee <topic> <hours>\n"
+        "/flashcardsee <topic>\n"
+        "/survivalee <topic>\n\n"
         "📄 *PDF*\n"
-        "/pdfseeee\n\n"
+        "/pdfsee\n\n"
         "⏰ *Admin Schedule*\n"
-        "/scheduleeeee <topic> <count> HH:MM <timer>\n"
-        "/unscheduleeeee\n\n"
-        "🌅 Daily motivation and welcome messages are supported.",
+        "/scheduleee <topic> <count> HH:MM <timer>\n"
+        "/unscheduleee\n\n"
+        "🌅 Daily motivation, welcome messages, and photo doubt solving are supported.",
         parse_mode="Markdown"
     )
 
@@ -213,6 +233,26 @@ async def survival_command(update,context):
     topic=" ".join(context.args).strip() or "Biology"
     await update.message.reply_text(f"🛡️ Survival Mode started!\nTopic: {topic}\nआगे normal quiz flow में questions भेजे जा सकते हैं।")
 
+async def photo_message(update, context):
+    user = update.effective_user
+    if update.effective_chat.type in ("group", "supergroup") and not (update.message.reply_to_message and update.message.reply_to_message.from_user and update.message.reply_to_message.from_user.id == context.bot.id):
+        return
+    
+    photo = update.message.photo[-1] # Highest resolution photo
+    caption = update.message.caption or ""
+    
+    processing_msg = await update.message.reply_text("🔍 फोटो प्रोसेस हो रही है, कृपया प्रतीक्षा करें...")
+    
+    try:
+        file = await context.bot.get_file(photo.file_id)
+        image_bytes = await file.download_as_bytearray()
+        
+        answer = solve_image_doubt(context.application.bot_data["gemini_client"], bytes(image_bytes), caption)
+        
+        await processing_msg.edit_text(answer[:4000], parse_mode="Markdown")
+    except Exception as e:
+        await processing_msg.edit_text("❌ फोटो से प्रश्न हल करने में असमर्थ। कृपया पुनः प्रयास करें।")
+
 async def text_message(update,context):
     if update.effective_chat.type in ("group","supergroup") and not (update.message.reply_to_message and update.message.reply_to_message.from_user and update.message.reply_to_message.from_user.id==context.bot.id):return
     text=(update.message.text or "").strip()
@@ -301,7 +341,7 @@ def register_handlers(app):
       CommandHandler("resettee",reset_command),CommandHandler("chatee",chat_command),
       CommandHandler("motivationee",motivation_command),CommandHandler("winneree",winner_command),CommandHandler("mistakeee",mistakes_command),
       CommandHandler("mistakequizee",mistake_quiz_command),CommandHandler("teachee",teach_command),
-      CommandHandler("vivaee",viva_command),CommandHandler("planee",plan_command),
+      CommandHandler("vivaee",vivaee_command if 'vivaee' in globals() else viva_command),CommandHandler("planee",plan_command),
       CommandHandler("remindee",remind_command),CommandHandler("eli10ee",eli10_command),
       CommandHandler("panicee",panic_command),CommandHandler("flashcardsee",flashcards_command),
       CommandHandler("survivalee",survival_command),CommandHandler("pdfsee",pdfs_command),
@@ -311,4 +351,5 @@ def register_handlers(app):
     app.add_handler(PollAnswerHandler(poll_answer))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS,welcome_new_members))
     app.add_handler(MessageHandler(filters.Document.PDF,pdf_upload))
+    app.add_handler(MessageHandler(filters.PHOTO, photo_message))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,text_message))
