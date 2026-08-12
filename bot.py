@@ -108,6 +108,16 @@ async def score_command(update,context):
 async def reset_command(update,context):
     reset_score(update.effective_user.id); await update.message.reply_text("🔄 Score, XP और mistakes reset हो गए।")
 
+async def motivation_command(update, context):
+    try:
+        answer = ask_gemini(
+            context.application.bot_data["gemini_client"],
+            "NEET aspirants के लिए एक छोटी, positive और powerful motivational line हिंदी में दें।"
+        )
+    except Exception:
+        answer = "मेहनत जारी रखो—हर दिन की छोटी progress तुम्हें goal के करीब ले जाती है! 💪"
+    await update.message.reply_text(f"🔥 {answer}")
+
 async def winner_command(update, context):
     if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("⚠️ केवल Admin।")
@@ -252,7 +262,7 @@ def add_schedule_job(app,row):
 def add_motivation_job(app,chat_id):
     app.job_queue.run_daily(morning_motivation_job,time=time(7,0,tzinfo=IST),data={"chat_id":chat_id},name=f"motivation_{chat_id}")
 
-def schedule_command(update,context):
+async def schedule_command(update,context):
     if update.effective_user.id not in ADMIN_IDS:return update.message.reply_text("⚠️ केवल Admin.")
     parsed=parse_schedule_args(list(context.args))
     if not parsed:return update.message.reply_text("❌ Format: /scheduleee Biology 10 17:00 60")
@@ -261,7 +271,7 @@ def schedule_command(update,context):
     add_motivation_job(context.application,update.effective_chat.id)
     return update.message.reply_text("✅ Daily schedule saved.",parse_mode="Markdown")
 
-def unschedule_command(update,context):
+async def unschedule_command(update,context):
     if update.effective_user.id not in ADMIN_IDS:return update.message.reply_text("⚠️ केवल Admin.")
     delete_schedules(update.effective_chat.id,update.effective_user.id)
     for job in context.job_queue.jobs():
