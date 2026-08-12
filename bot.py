@@ -1,23 +1,3 @@
-def solve_image_doubt(client, image_bytes: bytes, caption: str = "") -> str:
-    prompt = f"आप NEET Biology expert tutor हैं। इस image में दिए गए question/doubt को हिंदी में step-by-step समझाएं। अतिरिक्त text/caption: {caption}"
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[
-            types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
-            prompt
-        ]
-    )
-    return (response.text or "").strip()
-```[cite: 6]
-
----
-
-### 2. `bot.py` ko update karein
-Apni `bot.py` file mein sabse upar imports mein `solve_image_doubt` import karein (database aur quiz wale imports ke sath), aur yeh naya `photo_message` handler function add karke `register_handlers` mein jodh dein.
-
-Pura updated `bot.py` code niche diya gaya hai, isse copy karke apni purani `bot.py` file par paste kar dein:
-
-```python
 import re
 from datetime import datetime,time,timedelta
 from zoneinfo import ZoneInfo
@@ -238,7 +218,7 @@ async def photo_message(update, context):
     if update.effective_chat.type in ("group", "supergroup") and not (update.message.reply_to_message and update.message.reply_to_message.from_user and update.message.reply_to_message.from_user.id == context.bot.id):
         return
     
-    photo = update.message.photo[-1] # Highest resolution photo
+    photo = update.message.photo[-1]
     caption = update.message.caption or ""
     
     processing_msg = await update.message.reply_text("🔍 फोटो प्रोसेस हो रही है, कृपया प्रतीक्षा करें...")
@@ -341,7 +321,7 @@ def register_handlers(app):
       CommandHandler("resettee",reset_command),CommandHandler("chatee",chat_command),
       CommandHandler("motivationee",motivation_command),CommandHandler("winneree",winner_command),CommandHandler("mistakeee",mistakes_command),
       CommandHandler("mistakequizee",mistake_quiz_command),CommandHandler("teachee",teach_command),
-      CommandHandler("vivaee",vivaee_command if 'vivaee' in globals() else viva_command),CommandHandler("planee",plan_command),
+      CommandHandler("vivaee",viva_command),CommandHandler("planee",plan_command),
       CommandHandler("remindee",remind_command),CommandHandler("eli10ee",eli10_command),
       CommandHandler("panicee",panic_command),CommandHandler("flashcardsee",flashcards_command),
       CommandHandler("survivalee",survival_command),CommandHandler("pdfsee",pdfs_command),
