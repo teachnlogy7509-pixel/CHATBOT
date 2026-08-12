@@ -1,7 +1,12 @@
-NEET BOT - requested features
+# NEET Gemini Study Bot
+Existing quiz/poll/leaderboard bot plus Mistake Notebook, Teach-Back, Viva, Study Plan, Reminders, Explain Like I'm 10, Exam Panic and Flashcards.
 
-1) Daily MCQ schedule: 5:00 PM IST. Example: /schedule Biology 10 17:00 60
-2) Poll timer: use 30 or 60 seconds (example /schedule Biology 10 17:00 30)
-3) New group member welcome message is automatic.
-4) Daily motivation: 7:00 AM IST for chats with a saved schedule.
-5) Admin PDF upload and /pdfs remain available.
+Environment variables:
+- TELEGRAM_BOT_TOKEN (or TELEGRAM_TOKEN)
+- GEMINI_API_KEY
+- ADMIN_IDS
+
+Run:
+python3 main.py
+
+Source basis: built from the files/code supplied in the conversation.
