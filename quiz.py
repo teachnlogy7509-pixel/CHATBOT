@@ -29,3 +29,15 @@ NCERT स्तर का नया हिंदी प्रश्न बना
 def ask_gemini(client,prompt:str)->str:
     response=client.models.generate_content(model=GEMINI_MODEL,contents=prompt)
     return (response.text or "").strip()
+
+def solve_image_doubt(client, image_bytes: bytes, caption: str = "") -> str:
+    prompt = f"आप NEET Biology expert tutor हैं। इस image में दिए गए question/doubt को हिंदी में step-by-step समझाएं। अतिरिक्त text/caption: {caption}"
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[
+            types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+            prompt
+        ]
+    )
+    return (response.text or "").strip()
+```[cite: 6]
