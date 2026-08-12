@@ -40,4 +40,3 @@ def solve_image_doubt(client, image_bytes: bytes, caption: str = "") -> str:
         ]
     )
     return (response.text or "").strip()
-```[cite: 6]
